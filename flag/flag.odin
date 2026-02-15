@@ -167,7 +167,7 @@ Errors :: enum {
 PRIME :: 7
 
 @(private)
-capacity :: 32
+capacity :: 128
 
 @(private)
 Data_Union :: union($T: typeid) {

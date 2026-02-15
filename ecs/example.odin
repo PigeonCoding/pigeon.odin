@@ -21,12 +21,12 @@ main :: proc() {
   pool: [4]Entity
   
   // if you don't use an arena you have to manually free the 
-  // result of querries 
+  // result of querries
   backing_buffer := make([]u8, 1 * mem.Megabyte)
   defer delete(backing_buffer)
   arena: mem.Arena
   mem.arena_init(&arena, backing_buffer)
-  arena_allocator := mem.arena_allocator(&arena)
+  querries_alloc := mem.arena_allocator(&arena)
 
   y := 0
   i := &pool[y]
@@ -70,7 +70,7 @@ main :: proc() {
 
   for !rb.WindowShouldClose() {
 
-    for e in querry(pool[:], with(moves), with(Pos2D), with(Velocity2D), with(BoundBox), allocator = arena_allocator) {
+    for e in querry(pool[:], with(moves), with(Pos2D), with(Velocity2D), with(BoundBox), allocator = querries_alloc) {
       vel       := unwrap(get_component(e, Velocity2D))
       pos       := unwrap(get_component(e, Pos2D))
       bound     := unwrap(get_component(e, BoundBox))
@@ -92,14 +92,14 @@ main :: proc() {
     rb.ClearBackground(rb.BLACK)
 
 
-    if d := querry(pool[:], with(Drawn), allocator = arena_allocator); len(d) > 0 {
-      for c in querry(d, with(Circle), with(rb.Color), allocator = arena_allocator) {
+    if d := querry(pool[:], with(Drawn), allocator = querries_alloc); len(d) > 0 {
+      for c in querry(d, with(Circle), with(rb.Color), allocator = querries_alloc) {
         pos         := unwrap(get_component(c, Pos2D))
         circle      := unwrap(get_component(c, Circle))
         color       := unwrap(get_component(c, rb.Color))
         rb.DrawCircle(pos.x, pos.y, circle.radius, color^)
       }
-      for r in querry(d, with(Rectangle), with(rb.Color), allocator = arena_allocator) {
+      for r in querry(d, with(Rectangle), with(rb.Color), allocator = querries_alloc) {
         pos         := unwrap(get_component(r, Pos2D))
         rect        := unwrap(get_component(r, Rectangle))
         color       := unwrap(get_component(r, rb.Color))
@@ -114,7 +114,7 @@ main :: proc() {
   rb.CloseWindow()
 
   for &e in pool {
-    clear_components(&e)
+    free_entity(&e)
   }
 
 }
