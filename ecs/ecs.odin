@@ -1,6 +1,6 @@
 package ecs_engine
 
-// v0.1
+// v0.2
 
 import "core:fmt"
 import "core:os"
@@ -18,8 +18,21 @@ with_struct    :: struct { type: typeid }
 without_struct :: struct { type: typeid }
 w_union        :: union {with_struct, without_struct}
 
-with :: proc(T: typeid)    -> with_struct    { return { type = T } }
-without :: proc(T: typeid) -> without_struct { return { type = T } }
+// add_component           :: proc(e: ^Entity, $T: typeid, allocator := context.allocator)                             -> ^T
+// get_component           :: proc(e: ^Entity, $T: typeid)                                                             -> Maybe(^T)
+// has_component           :: proc(e: ^Entity, T: typeid)                                                              -> bool
+// with                    :: proc(T: typeid)                                                                          -> with_struct
+// without                 :: proc(T: typeid)                                                                          -> without_struct
+// querry                  :: proc{querry_entity_array, querry_entity_array_ptr}                                       -> []^Entity
+// querry_entity_array     :: proc(pool: union {[]Entity, []^Entity}, args: ..w_union, allocator := context.allocator) -> []^Entity
+// querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynamic]^Entity, args: ..w_union)         -> []^Entity
+// unwrap                  :: proc{unwrap_maybe}                                                                       -> T
+// unwrap_maybe            :: proc(m: Maybe($T), file := #file, line := #line)                                         -> T
+// clear_entity            :: proc(e: ^Entity)
+// free_entity             :: proc(e: ^Entity)
+
+with    :: proc(T: typeid)    -> with_struct    { return { type = T } }
+without :: proc(T: typeid)    -> without_struct { return { type = T } }
 
 add_component :: proc(e: ^Entity, $T: typeid, allocator := context.allocator) -> ^T {
   for i in e.components {
@@ -45,21 +58,7 @@ get_component :: proc(e: ^Entity, $T: typeid) -> Maybe(^T) {
   return nil
 }
 
-clear_entity :: proc(e: ^Entity) {
-  for &c in e.components {
-    free(&c.data[0])
-  }
-  clear(&e.components)
-}
-
-free_entity :: proc(e: ^Entity) {
-  for &c in e.components {
-    free(&c.data[0])
-  }
-  free(&e.components)
-}
-
-has_componenent :: proc(e: ^Entity, T: typeid) -> bool {
+has_component :: proc(e: ^Entity, T: typeid) -> bool {
   for c in e.components {
     if c.type == T {
       return true
@@ -68,9 +67,9 @@ has_componenent :: proc(e: ^Entity, T: typeid) -> bool {
   return false
 }
 
-querry :: proc{querry_entity_array, querry_entity_array_ptr}
+querry :: proc{querry_entity_array_alloc, querry_entity_array_ptr}
 
-querry_entity_array :: proc(pool: union {[]Entity, []^Entity}, args: ..w_union, allocator := context.allocator) -> []^Entity{
+querry_entity_array_alloc :: proc(pool: union {[]Entity, []^Entity}, args: ..w_union, allocator := context.allocator) -> []^Entity {
   res: [dynamic]^Entity
   res.allocator = allocator
 
@@ -87,7 +86,7 @@ querry_entity_array :: proc(pool: union {[]Entity, []^Entity}, args: ..w_union, 
     switch v in a {
     case with_struct:
       for i < len(res) {
-        if !has_componenent(res[i], v.type) {
+        if !has_component(res[i], v.type) {
           unordered_remove(&res, i)
         } else {
           i += 1
@@ -95,7 +94,7 @@ querry_entity_array :: proc(pool: union {[]Entity, []^Entity}, args: ..w_union, 
       }
     case without_struct:
       for i < len(res) {
-        if has_componenent(res[i], v.type) {
+        if has_component(res[i], v.type) {
           unordered_remove(&res, i)
         } else {
           i += 1
@@ -107,7 +106,10 @@ querry_entity_array :: proc(pool: union {[]Entity, []^Entity}, args: ..w_union, 
   return res[:]
 }
 
-querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynamic]^Entity, args: ..w_union) -> []^Entity{
+querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynamic]^Entity, args: ..w_union) -> []^Entity {
+
+  start := len(res)
+
   switch v in pool {
   case []Entity:
     for &e in v { append(res, &e) }
@@ -121,7 +123,7 @@ querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynami
     switch v in a {
     case with_struct:
       for i < len(res) {
-        if !has_componenent(res[i], v.type) {
+        if !has_component(res[i], v.type) {
           unordered_remove(res, i)
         } else {
           i += 1
@@ -129,7 +131,7 @@ querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynami
       }
     case without_struct:
       for i < len(res) {
-        if has_componenent(res[i], v.type) {
+        if has_component(res[i], v.type) {
           unordered_remove(res, i)
         } else {
           i += 1
@@ -138,8 +140,24 @@ querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynami
     }
   }
 
-  return res[:]
+  return res[start:]
 }
+
+clear_entity :: proc(e: ^Entity) {
+  for &c in e.components {
+    free(&c.data[0])
+  }
+  clear(&e.components)
+}
+
+free_entity :: proc(e: ^Entity) {
+  for &c in e.components {
+    free(&c.data[0])
+  }
+  free(&e.components)
+}
+
+unwrap :: proc{unwrap_maybe}
 
 unwrap_maybe :: proc(m: Maybe($T), file := #file, line := #line) -> T {
   val, ok := m.?
@@ -148,4 +166,3 @@ unwrap_maybe :: proc(m: Maybe($T), file := #file, line := #line) -> T {
   os.exit(1)
 }
 
-unwrap :: proc{unwrap_maybe}
