@@ -73,37 +73,7 @@ querry_entity_array_alloc :: proc(pool: union {[]Entity, []^Entity}, args: ..w_u
   res: [dynamic]^Entity
   res.allocator = allocator
 
-  switch v in pool {
-  case []Entity:
-    for &e in v { append(&res, &e) }
-  case []^Entity:
-    for &e in v { append(&res, e) }
-  }
-
-  i := 0
-  for a in args {
-    i = 0
-    switch v in a {
-    case with_struct:
-      for i < len(res) {
-        if !has_component(res[i], v.type) {
-          unordered_remove(&res, i)
-        } else {
-          i += 1
-        }
-      }
-    case without_struct:
-      for i < len(res) {
-        if has_component(res[i], v.type) {
-          unordered_remove(&res, i)
-        } else {
-          i += 1
-        }
-      }
-    }
-  }
-
-  return res[:]
+  return querry_entity_array_ptr(pool, &res, ..args)
 }
 
 querry_entity_array_ptr :: proc(pool: union {[]Entity, []^Entity}, res: ^[dynamic]^Entity, args: ..w_union) -> []^Entity {
@@ -152,9 +122,9 @@ clear_entity :: proc(e: ^Entity) {
 
 free_entity :: proc(e: ^Entity) {
   for &c in e.components {
-    free(&c.data[0])
+    delete(c.data)
   }
-  free(&e.components)
+  delete(e.components)
 }
 
 unwrap :: proc{unwrap_maybe}
