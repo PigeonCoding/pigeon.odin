@@ -1,6 +1,7 @@
 package lexer
-
-// v0.3
+// v0.3.1
+// - v0.3.1 changelog:
+// -- get_token() now returns a bool to indicate if it reached the EOF
 // - v0.3 changelog:
 // -- use punct token_id and put the char/punt in intlit
 // -- added custom bases for numbers ex: 12#AAA
@@ -111,7 +112,7 @@ init_lexer :: proc(file: string) -> lexer {
   return l
 }
 
-get_token :: proc(l: ^lexer) {
+get_token :: proc(l: ^lexer) -> bool {
   l.token.type = .none
   l.token.intlit = 0
   l.token.floatlit = 0
@@ -119,7 +120,7 @@ get_token :: proc(l: ^lexer) {
 
   if l.cursor == len(l.content) {
     l.token.type = .either_end_or_failure
-    return
+    return false
   }
 
   for l.content[l.cursor] == ' ' || l.content[l.cursor] == '\t' {
@@ -134,8 +135,8 @@ get_token :: proc(l: ^lexer) {
       l.cursor += 1
       l.col += 1
     }
-    get_token(l)
-    return
+   
+    return get_token(l)
   }
 
   if is_alphabetical(l.content[l.cursor]) {
@@ -202,8 +203,8 @@ get_token :: proc(l: ^lexer) {
     l.row += 1
     l.col = 0
     l.cursor += 1
-    get_token(l)
-    return
+    
+    return get_token(l)
   } else if l.content[l.cursor] == '\'' {
     l.cursor += 1
     l.token.type = .sqstring
@@ -431,6 +432,8 @@ get_token :: proc(l: ^lexer) {
     l.cursor += 1
     l.col += 1
   }
+
+  return true
 }
 
 peek_at_index :: proc(l: []u8, index: uint) -> Maybe(byte) {
