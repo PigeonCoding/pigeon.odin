@@ -1,6 +1,11 @@
 package flag
 
-// v0.2
+// v0.3
+// changelog v0.3:
+// - switched to odin map instead of https://github.com/CobbCoding1/odin-hashmap
+// - removed init_container function
+// - added option to not include the '---'        in the remaining args list
+// - added option to not include the program path in the remaining args list
 // changelog v0.2:
 // - added a mandatory init_container function that initializes the hashmap
 // - added the get_flag_value to get the result of a flag (either nil or a pointer to the value)
@@ -19,28 +24,26 @@ flag_val_types :: union {
 }
 
 flag_t :: struct {
-  flag:        string,
-  value:       flag_val_types,
-  description: string,
+  flag        : string,
+  value       : flag_val_types,
+  description : string,
 }
 
 flag_container :: struct {
-  flags_map:         Map(^flag_t),
-  private_flag_list: [dynamic]flag_t,
-  remaining:         []string,
-  flag_prefix:       string,
-}
-
-init_container :: proc(cont: ^flag_container) {
-  cont.flags_map = map_init(^flag_t)
+  flags_map         : map[string]^flag_t,
+  private_flag_list : [dynamic]flag_t,
+  remaining         : []string,
+  flag_prefix       : string,
+  skip_triple_dash  : bool,
+  skip_pogram_name  : bool,
 }
 
 // if flag_prefix is left empty it will default to '-'
 add_flag :: proc(
-  container: ^flag_container,
-  flag_name: string,
-  initial_val: flag_val_types,
-  description: string,
+  container   : ^flag_container,
+  flag_name   : string,
+  initial_val : flag_val_types,
+  description : string,
 ) {
   t: flag_t
   t.flag = flag_name
@@ -50,13 +53,12 @@ add_flag :: proc(
   append(&container.private_flag_list, t)
 }
 
-// this function does not modify os.args
 check_flags :: proc(container: ^flag_container) {
   rem: [dynamic]string
 
   if container.flag_prefix == "" do container.flag_prefix = "-"
 
-  arg_i := 0
+  arg_i := 1 if container.skip_pogram_name else 0
   for arg_i < len(os.args) {
 
     if os.args[arg_i] == "---" {
@@ -83,8 +85,7 @@ check_flags :: proc(container: ^flag_container) {
             f.value = os.args[arg_i]
           }
 
-          if yes do map_insert(&container.flags_map, f.flag, &f)
-
+          container.flags_map[f.flag] = &f
         }
       }
       if !yes {
@@ -97,6 +98,8 @@ check_flags :: proc(container: ^flag_container) {
     arg_i += 1
   }
 
+  if container.skip_triple_dash do arg_i += 1
+
   for i in arg_i ..< len(os.args) {
     append(&rem, os.args[i])
   }
@@ -107,14 +110,9 @@ check_flags :: proc(container: ^flag_container) {
 get_flag_value :: proc(cont: ^flag_container, name: string) -> ^any {
   // TODO: the user has to manually cast it to the correct type
   // maybe find a way to return the correct type directly?
-  res := map_get(&cont.flags_map, name)
-  switch _ in res {
-  case Errors:
-    return nil
-  case ^flag_t:
-    return auto_cast &res.(^flag_t).value
-  }
-  return nil
+  res := cont.flags_map[name]
+  if res == nil do return nil
+  return auto_cast &res.value
 }
 
 print_usage :: proc(container: ^flag_container) {
@@ -149,92 +147,6 @@ print_usage :: proc(container: ^flag_container) {
 free_flag_container :: proc(container: ^flag_container) {
   delete(container.private_flag_list)
   delete(container.remaining)
-  delete(container.flags_map.data)
+  delete(container.flags_map)
 }
 
-// ------------------------------------ 
-// hashmap implementation from https://github.com/CobbCoding1/odin-hashmap/
-// (not copied in full)
-
-
-Errors :: enum {
-  OK,
-  NotInMap,
-  MapFull,
-}
-
-@(private)
-PRIME :: 7
-
-@(private)
-capacity :: 128
-
-@(private)
-Data_Union :: union($T: typeid) {
-  T,
-  Errors,
-}
-
-@(private)
-Data :: struct($T: typeid) {
-  val:         T,
-  key:         string,
-  unavailable: bool,
-}
-
-@(private)
-Map :: struct($T: typeid) {
-  data: [dynamic]Data(T),
-}
-
-@(private)
-hash :: proc(n: string) -> int {
-  result: int = PRIME
-  for ch in n {
-    result = result * 31 + int(ch)
-  }
-  return result
-}
-
-@(private)
-map_init :: proc($T: typeid) -> Map(T) {
-  hashmap: Map(T)
-  hashmap.data = make([dynamic]Data(T), capacity)
-  return hashmap
-}
-
-@(private)
-map_insert :: proc(hashmap: ^Map($T), key: string, val: T) -> Errors {
-  index := hash(key) % cap(hashmap.data)
-
-  data := Data(T){val, key, true}
-
-  iterated_by := 0
-  for hashmap.data[index].unavailable == true {
-    if iterated_by >= cap(hashmap.data) {return Errors.MapFull}
-    index += 1
-    iterated_by += 1
-    if index >= cap(hashmap.data) {index = 0}
-  }
-
-  assign_at(&hashmap.data, index, data)
-  return Errors.OK
-}
-
-@(private)
-map_get :: proc(hashmap: ^Map($T), key: string) -> Data_Union(T) {
-  index := hash(key) % cap(hashmap.data)
-
-  iterated_by := 0
-  for hashmap.data[index].key != key {
-    if hashmap.data[index].unavailable {
-      return Errors.NotInMap
-    }
-    if iterated_by >= cap(hashmap.data) {return Errors.MapFull}
-    index += 1
-    iterated_by += 1
-    if index >= cap(hashmap.data) {index = 0}
-  }
-
-  return hashmap.data[index].val
-}
